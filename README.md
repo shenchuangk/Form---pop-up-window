@@ -1,0 +1,220 @@
+# 自定义弹窗配置文档
+
+## 1. 概述
+
+自定义弹窗通过配置对象定义其行为和外观，支持动态表单渲染、数据预处理、提交处理等功能。所有弹窗配置需注册到弹窗注册表（`modal-registry`）中，通过唯一标识进行调用。
+
+
+## 2. 基本结构
+
+一个完整的弹窗配置对象包含以下核心属性：
+
+```javascript
+const ModalConfig = {
+  title: '弹窗标题',       // 弹窗标题
+  config: [],              // 表单字段配置数组
+  beforeShow?: Function,   // 弹窗显示前的钩子函数
+  onSubmit?: Function      // 表单提交时的处理函数
+};
+```
+
+
+## 3. 核心属性详解
+
+### 3.1 `title`
+- 类型：`string`
+- 说明：弹窗的标题文本，将显示在弹窗头部
+- 示例：`title: '添加产品'`
+
+
+### 3.2 `config`
+- 类型：`Array<FieldConfig>`
+- 说明：表单字段配置数组，每个元素定义一个表单字段的属性
+- 每个`FieldConfig`包含以下属性：
+
+| 属性名 | 类型 | 说明 | 可选值/示例 |
+|--------|------|------|------------|
+| `field` | `string` | 字段唯一标识（表单数据的键名） | `'name'`、`'shuliang'` |
+| `title` | `string` | 字段标签文本 | `'产品名称'`、`'数量'` |
+| `type` | `string` | 输入控件类型 | `'text'`、`'number'`、`'select2'`、`'checkbox'` |
+| `required` | `boolean` | 是否为必填项 | `true`/`false` |
+| `placeholder` | `string` | 输入提示文本 | `'请输入名称'` |
+| `value` | 任意类型 | 默认值 | 文本框：`'默认值'`；数字框：`1`；复选框：`false` |
+| `min` | `number` | 最小值（仅`type: 'number'`有效） | `0.1`、`1` |
+| `step` | `number` | 步长（仅`type: 'number'`有效） | `0.1`、`1` |
+| `options` | `Array<Option>` | 下拉选项（仅`type: 'select2'`有效） | `[{value: '1', label: '选项1'}]` |
+| `button` | `Object` | 附加按钮配置（通常用于打开子弹窗） | 见下表 |
+
+#### `button` 配置（子弹窗关联）：
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `text` | `string` | 按钮文本 |
+| `childModal` | `string` | 关联的子弹窗标识（需已注册） |
+
+#### 示例：
+```javascript
+config: [
+  {
+    field: 'caizhi',
+    title: '材质',
+    type: 'select2',
+    required: true,
+    options: [], // 可通过beforeShow动态填充
+    button: {
+      text: '新建材质',
+      childModal: 'caizhi-modal' // 关联材质弹窗
+    }
+  },
+  {
+    field: 'shuliang',
+    title: '数量',
+    type: 'number',
+    required: true,
+    min: 1,
+    step: 1,
+    value: 1,
+    placeholder: '请输入数量'
+  }
+]
+```
+
+
+### 3.3 `beforeShow`
+- 类型：`async Function(initData): Object`
+- 说明：弹窗显示前触发的钩子函数，用于动态处理数据（如下拉选项加载）
+- 参数：`initData` - 打开弹窗时传入的初始化数据
+- 返回值：包含字段配置更新的对象，格式为 `{ 字段名: { 配置项 } }`
+- 示例：
+```javascript
+beforeShow: async (dingdanId) => {
+  const dataManager = window.parent?.dataManager || window.dataManager;
+  const caizhis = dataManager.getCaizhis() || [];
+  
+  // 动态设置下拉选项
+  return {
+    caizhi: {
+      options: [
+        { value: '', label: '请选择材质' },
+        ...caizhis.map(c => ({ value: c.id, label: c.name }))
+      ]
+    },
+    dingdan: dingdanId // 额外数据（会合并到表单数据中）
+  };
+}
+```
+
+
+### 3.4 `onSubmit`
+- 类型：`async Function(formData): void`
+- 说明：表单提交时触发的处理函数，用于数据提交、保存等操作
+- 参数：`formData` - 收集的表单数据（键为`field`，值为用户输入）
+- 功能：通常调用`dataManager`的方法提交数据，并处理成功/失败逻辑
+- 示例：
+```javascript
+onSubmit: async (formData) => {
+  try {
+    const dataManager = window.parent?.dataManager || window.dataManager;
+    // 处理表单数据（如类型转换、关联对象处理）
+    const processedData = {
+      houdu: parseFloat(formData.houdu),
+      caizhi: formData.caizhi ? { id: parseInt(formData.caizhi) } : null
+    };
+    // 提交数据
+    await dataManager.addEntity('bancai', processedData);
+    alert('提交成功！');
+  } catch (error) {
+    console.error('提交失败:', error);
+    alert(`失败: ${error.message}`);
+  }
+}
+```
+
+
+## 4. 弹窗注册与使用
+
+### 4.1 注册弹窗
+通过`registerModal`方法将弹窗配置注册到注册表：
+```javascript
+import { registerModal } from '../modal-registry/modal-registry.js';
+import { chanpinModalConfig } from './chanpin-modal.js';
+
+// 注册弹窗（标识为'chanpin-modal'）
+registerModal('chanpin-modal', chanpinModalConfig);
+```
+
+
+### 4.2 调用弹窗
+通过弹窗标识调用已注册的弹窗（需结合`CustomFormModal`组件）：
+```javascript
+// 打开标识为'chanpin-modal'的弹窗，并传入初始化数据
+const modal = document.querySelector('custom-form-modal');
+modal.setAttribute('modalname', 'chanpin-modal');
+modal.setAttribute('initdata', JSON.stringify({ id: 123 })); // 可选：初始化数据
+modal.open();
+```
+
+
+## 5. 常见配置示例
+
+### 5.1 简单文本输入弹窗（如材质管理）
+```javascript
+export const caizhiModalConfig = {
+  title: '材质管理',
+  config: [
+    {
+      field: 'name',
+      title: '材质名称',
+      type: 'text',
+      required: true,
+      placeholder: '请输入材质名称'
+    }
+  ],
+  onSubmit: async (formData) => {
+    // 提交逻辑...
+  }
+};
+```
+
+### 5.2 带下拉选择和子弹窗的配置（如板材管理）
+```javascript
+export const bancaiModalConfig = {
+  title: '板材管理',
+  config: [
+    {
+      field: 'houdu',
+      title: '厚度(mm)',
+      type: 'number',
+      required: true,
+      min: 0.1,
+      step: 0.1,
+      placeholder: '请输入板材厚度'
+    },
+    {
+      field: 'caizhi',
+      title: '材质',
+      type: 'select2',
+      required: true,
+      options: [],
+      button: {
+        text: '新建材质',
+        childModal: 'caizhi-modal' // 关联材质弹窗
+      }
+    }
+  ],
+  beforeShow: async () => {
+    // 加载材质下拉选项...
+  },
+  onSubmit: async (formData) => {
+    // 提交逻辑...
+  }
+};
+```
+
+
+## 6. 注意事项
+
+1. 弹窗标识需唯一，避免注册冲突
+2. `beforeShow`中返回的额外数据会自动合并到表单数据中
+3. 子弹窗关闭后会自动刷新父弹窗的表单数据（如下拉选项）
+4. 数字类型字段需在`onSubmit`中手动转换为`number`类型（表单默认返回字符串）
+5. 下拉选项`options`的格式固定为`[{ value: '', label: '' }]`，`value`为提交值，`label`为显示文本
