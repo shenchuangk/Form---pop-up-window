@@ -536,3 +536,51 @@
   height: auto !important;
 }
 
+
+/* 数学公式输入框样式 */
+.math-enabled {
+  text-align: right;
+  /* 添加轻微的背景色变化以区分普通输入框 */
+  background-color: #f8f9ff;
+  position: relative;
+}
+
+/* 鼠标悬停时显示提示 */
+.math-enabled:hover {
+  border-color: #007bff;
+}
+
+/* 实时计算结果提示样式 */
+.math-enabled[data-result]:after {
+  content: attr(data-result);
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #007bff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* 增强文本选择的可读性 */
+.math-enabled::selection {
+  background-color: rgba(0, 123, 255, 0.2);
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .math-enabled {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+  
+  .math-enabled[data-result]:after {
+    font-size: 11px;
+    padding: 1px 6px;
+    right: 10px;
+  }
+}
